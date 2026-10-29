@@ -1,0 +1,9 @@
+Date,Description,Debit,Credit,Balance
+01-10-2026,Salary Credit Infosys,,125000.00,150000.00
+02-10-2026,Zomato Food Order,620.00,,149380.00
+INVALID_DATE_FORMAT,Blinkit Instant Groceries,490.00,,148890.00
+04-10-2026,Airtel Broadband Fiber Bill,1179.00,,147711.00
+05-10-2026,Apollo Pharmacy Medicines,NOT_A_VALID_AMOUNT,,146800.00
+06-10-2026,Spotify Premium Family Plan,179.00,,146621.00
+07-10-2026,Cult Fit Gym Subscription,1499.00,,145122.00
+08-10-2026,Myntra Festive Sale,2499.00,,142623.00
