@@ -7,8 +7,8 @@ import {
   AlertTriangle,
   ArrowRight,
   TrendingUp,
+  Check,
   X,
-  Sparkles,
 } from 'lucide-react'
 import { simulateGoalApi, updateGoalApi } from '@/api/goals'
 import { SavingsGoal, GoalSimulationResponse } from '@/types'
@@ -228,7 +228,7 @@ export const GoalSimulationModal: React.FC<GoalSimulationModalProps> = ({
             size="sm"
             onClick={() => saveContributionMutation.mutate()}
             disabled={saveContributionMutation.isPending}
-            icon={<Sparkles className="w-3.5 h-3.5" />}
+            icon={<Check className="w-3.5 h-3.5" />}
           >
             {saveContributionMutation.isPending ? 'Saving...' : 'Commit Monthly Plan'}
           </Button>

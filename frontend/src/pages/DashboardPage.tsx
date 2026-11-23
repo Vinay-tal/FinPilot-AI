@@ -7,7 +7,6 @@ import {
   PiggyBank,
   AlertTriangle,
   ArrowRight,
-  Sparkles,
   TrendingDown,
   Calendar,
 } from 'lucide-react'
@@ -82,7 +81,7 @@ export const DashboardPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Executive Financial Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time multi-account tracking, budget pacing, and AI recommendations
+            Real-time multi-account tracking, budget pacing, and financial recommendations
           </p>
         </div>
 
@@ -91,7 +90,7 @@ export const DashboardPage: React.FC = () => {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-slate-700 cursor-pointer"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400 text-slate-700 cursor-pointer"
           >
             <option value="current_month">Current Month</option>
             <option value="last_30_days">Last 30 Days</option>
@@ -147,7 +146,7 @@ export const DashboardPage: React.FC = () => {
 
       {/* High-Priority Anomaly Alert Banner (if any) */}
       {activeInsights.length > 0 && (
-        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 flex items-start justify-between gap-3 shadow-xs">
+        <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start justify-between gap-3 shadow-xs">
           <div className="flex items-start space-x-3">
             <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
               <AlertTriangle className="w-4 h-4" />

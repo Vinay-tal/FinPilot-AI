@@ -12,7 +12,7 @@ import {
   AlertCircle,
   RefreshCw,
   LogOut,
-  Sparkles,
+  Shield,
   Globe,
   Clock,
 } from 'lucide-react'
@@ -133,14 +133,14 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         {/* Demo Mode & Persona Card (1 col) */}
-        <div className="bg-gradient-to-br from-navy-900 to-navy-850 p-6 rounded-xl text-white shadow-xs flex flex-col justify-between">
+        <div className="bg-slate-900 p-6 rounded-xl text-white shadow-xs border border-slate-800 flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center">
-                <Sparkles className="w-3.5 h-3.5 mr-1" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center">
+                <Shield className="w-3.5 h-3.5 mr-1 text-slate-400" />
                 Persona
               </span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                 Demo
               </span>
             </div>

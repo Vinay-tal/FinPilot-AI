@@ -102,10 +102,10 @@ export const GoalsPage: React.FC = () => {
       </div>
 
       {/* Emergency Fund Intelligence Banner */}
-      <div className="bg-gradient-to-r from-teal-900 to-navy-900 text-white rounded-xl p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-slate-900 text-white rounded-xl p-5 shadow-xs border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-start space-x-3.5">
-          <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300 shrink-0 mt-0.5">
-            <Shield className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-200 shrink-0 mt-0.5">
+            <Shield className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-white tracking-tight">
@@ -119,9 +119,9 @@ export const GoalsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="shrink-0 flex items-center space-x-2 bg-navy-800/80 px-3.5 py-2 rounded-lg border border-navy-700">
+        <div className="shrink-0 flex items-center space-x-2 bg-slate-800 px-3.5 py-2 rounded-lg border border-slate-700">
           <span className="text-xs text-slate-400">Target 6-Month:</span>
-          <span className="font-mono font-bold text-sm text-teal-300">{formatINR(monthlyExpenses * 6, { hideDecimals: true })}</span>
+          <span className="font-mono font-bold text-sm text-emerald-400">{formatINR(monthlyExpenses * 6, { hideDecimals: true })}</span>
         </div>
       </div>
 

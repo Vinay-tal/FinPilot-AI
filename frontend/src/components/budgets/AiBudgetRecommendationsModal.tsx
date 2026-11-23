@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Sparkles, X, Check, CheckSquare, Square, Info } from 'lucide-react'
+import { Sliders, X, Check, CheckSquare, Square, Info } from 'lucide-react'
 import { Button } from '@/components/common/Button'
 import { BudgetRecommendationsResponse, BudgetRecommendationItem } from '@/types'
 import { formatINR } from '@/lib/formatters'
@@ -71,14 +71,14 @@ export const AiBudgetRecommendationsModal: React.FC<AiBudgetRecommendationsModal
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50/50 to-slate-50/50">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-teal-100 text-teal-800 rounded-lg">
-              <Sparkles className="w-5 h-5 text-teal-600" />
+            <div className="p-2 bg-slate-100 text-slate-800 rounded-lg">
+              <Sliders className="w-5 h-5 text-slate-700" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-base">
-                Historical Spending AI Budget Recommendations
+                Historical Spending Budget Recommendations
               </h3>
               <p className="text-xs text-slate-500">
                 Data-driven category targets based on 90-day spending patterns &amp; category elasticity

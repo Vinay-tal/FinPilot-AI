@@ -15,7 +15,6 @@ import {
   Edit2,
   Check,
   X,
-  Sparkles,
 } from 'lucide-react'
 import {
   getTransactionsApi,

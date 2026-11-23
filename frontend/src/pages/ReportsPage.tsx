@@ -11,7 +11,6 @@ import {
   PieChart as PieIcon,
   ShieldCheck,
   Target,
-  Sparkles,
   AlertTriangle,
   Lightbulb,
 } from 'lucide-react'

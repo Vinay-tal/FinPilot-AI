@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Info,
-  Sparkles,
   PieChart,
   RefreshCw,
 } from 'lucide-react'
@@ -210,8 +209,8 @@ export const FinancialHealthScoreView: React.FC = () => {
                 )}
 
                 {!factor.is_excluded && (
-                  <div className="pt-2 border-t border-slate-100 mt-2 flex items-start gap-1.5 text-2xs text-teal-800 bg-teal-50/50 p-2 rounded">
-                    <Sparkles className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
+                  <div className="pt-2 border-t border-slate-100 mt-2 flex items-start gap-1.5 text-2xs text-slate-700 bg-slate-50 p-2 rounded border border-slate-200/60">
+                    <TrendingUp className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                     <span>{factor.actionable_tip}</span>
                   </div>
                 )}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   MessageSquare,
-  Sparkles,
+  Activity,
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
@@ -200,7 +200,7 @@ export const SMSParserModal: React.FC<Props> = ({
             isLoading={isParsing}
             className="w-full sm:w-auto"
           >
-            <Sparkles className="w-4 h-4 mr-1.5 text-teal-200" />
+            <Activity className="w-4 h-4 mr-1.5" />
             Extract & Categorize
           </Button>
         </div>

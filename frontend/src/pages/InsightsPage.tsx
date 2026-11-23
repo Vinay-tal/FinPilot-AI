@@ -7,8 +7,9 @@ import {
   Filter,
   Info,
   RefreshCw,
-  Sparkles,
+  Sliders,
   TrendingDown,
+  TrendingUp,
   ShieldAlert,
   Brain,
   BellRing,
@@ -105,7 +106,7 @@ export const InsightsPage: React.FC = () => {
         return <AlertTriangle className="w-5 h-5 text-amber-500" />
       case 'SAVINGS_TIP':
       default:
-        return <Sparkles className="w-5 h-5 text-teal-600" />
+        return <CheckCircle2 className="w-5 h-5 text-emerald-600" />
     }
   }
 
@@ -118,8 +119,8 @@ export const InsightsPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Insights & Anomaly Detection
             </h1>
-            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-              Rule + ML Engine
+            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              Rule Engine & Analytics
             </span>
           </div>
           <p className="text-sm text-slate-600 mt-0.5">
@@ -146,7 +147,7 @@ export const InsightsPage: React.FC = () => {
           onClick={() => setMainTab('health')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
             mainTab === 'health'
-              ? 'bg-navy-900 text-white shadow-xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -157,18 +158,18 @@ export const InsightsPage: React.FC = () => {
           onClick={() => setMainTab('recommendations')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
             mainTab === 'recommendations'
-              ? 'bg-navy-900 text-white shadow-xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <Sparkles className="w-4 h-4 text-teal-400" />
+          <TrendingUp className="w-4 h-4 text-emerald-400" />
           Personalized Recommendations
         </button>
         <button
           onClick={() => setMainTab('advisory')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
             mainTab === 'advisory'
-              ? 'bg-navy-900 text-white shadow-xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -179,7 +180,7 @@ export const InsightsPage: React.FC = () => {
           onClick={() => setMainTab('intelligence')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
             mainTab === 'intelligence'
-              ? 'bg-navy-900 text-white shadow-xs'
+              ? 'bg-slate-900 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >

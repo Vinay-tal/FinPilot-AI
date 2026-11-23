@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Sparkles,
   CheckCircle2,
   XCircle,
   TrendingUp,
@@ -271,7 +270,7 @@ export const PersonalizedRecommendationsView: React.FC = () => {
                         variant="primary"
                         onClick={() => applyMutation.mutate(rec.id)}
                         disabled={applyMutation.isPending}
-                        icon={<Sparkles className="w-3.5 h-3.5" />}
+                        icon={<CheckCircle2 className="w-3.5 h-3.5" />}
                       >
                         {applyMutation.isPending ? 'Applying...' : 'Apply Action'}
                       </Button>
@@ -293,7 +292,7 @@ export const PersonalizedRecommendationsView: React.FC = () => {
                         variant="primary"
                         onClick={() => applyMutation.mutate(rec.id)}
                         disabled={applyMutation.isPending}
-                        icon={<Sparkles className="w-3.5 h-3.5" />}
+                        icon={<CheckCircle2 className="w-3.5 h-3.5" />}
                       >
                         {applyMutation.isPending ? 'Applying...' : 'Apply Action'}
                       </Button>

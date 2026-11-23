@@ -7,7 +7,7 @@ import {
   Trash2,
   Calendar,
   CheckCircle2,
-  Sparkles,
+  Sliders,
   AlertTriangle,
 } from 'lucide-react'
 import {
@@ -172,10 +172,10 @@ export const BudgetsPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsAiModalOpen(true)}
-            className="text-xs font-semibold hover:border-teal-600 hover:text-teal-700"
+            className="text-xs font-medium"
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1 text-teal-600" />
-            AI Suggestions
+            <Sliders className="w-3.5 h-3.5 mr-1 text-slate-500" />
+            Budget Suggestions
           </Button>
 
           <Button

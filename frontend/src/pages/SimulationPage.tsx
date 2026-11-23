@@ -5,7 +5,6 @@ import {
   TrendingUp,
   TrendingDown,
   RotateCcw,
-  Sparkles,
   ShieldAlert,
   Calendar,
   Bookmark,
@@ -140,7 +139,7 @@ export const SimulationPage: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Scenario Simulator
             </h1>
-            <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+            <span className="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 border border-slate-200">
               Deterministic What-If Engine
             </span>
           </div>
@@ -179,7 +178,7 @@ export const SimulationPage: React.FC = () => {
       {/* Preset Quick Chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
         <span className="text-slate-500 font-semibold uppercase tracking-wider shrink-0 mr-1 flex items-center">
-          <Sparkles className="w-3.5 h-3.5 mr-1 text-teal-600" /> Quick Presets:
+          <Sliders className="w-3.5 h-3.5 mr-1 text-slate-500" /> Presets:
         </span>
         <button
           onClick={() => applyPreset({ salary_delta_pct: 15 })}

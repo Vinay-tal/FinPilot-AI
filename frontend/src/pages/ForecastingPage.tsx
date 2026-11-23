@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   Info,
   Clock,
-  Sparkles,
   CheckCircle2,
   HelpCircle,
   Activity,
@@ -159,7 +158,7 @@ export const ForecastingPage: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Financial Forecasting & Risk Analysis Engine
             </h1>
-            <Badge variant="teal">Milestone 4</Badge>
+            <Badge variant="neutral">Projections Engine</Badge>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Statistical & ML cash flow projections with calendar regressors, uncertainty bands, and shortfall risk calibration
@@ -424,11 +423,11 @@ export const ForecastingPage: React.FC = () => {
             onClick={() => setActiveTab('explainability')}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
               activeTab === 'explainability'
-                ? 'bg-white text-navy-900 shadow-xs'
+                ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+            <TrendingUp className="w-3.5 h-3.5 text-slate-500" />
             Explainability & Drivers
           </button>
 

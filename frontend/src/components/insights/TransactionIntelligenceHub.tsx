@@ -7,7 +7,6 @@ import {
   TrendingUp,
   Store,
   RefreshCw,
-  Sparkles,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
@@ -202,7 +201,7 @@ export const TransactionIntelligenceHub: React.FC = () => {
                   onClick={() => retrainMutation.mutate()}
                   isLoading={retrainMutation.isPending}
                 >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-teal-200" />
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                   Retrain Model
                 </Button>
               </div>

@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Bot,
   Send,
-  Sparkles,
   ShieldCheck,
   User,
   Plus,
@@ -293,8 +291,8 @@ export const CopilotPage: React.FC = () => {
         {/* Sidebar Header */}
         <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs">
-              <Bot className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-slate-900 text-slate-100 flex items-center justify-center shadow-xs">
+              <MessageSquare className="w-4 h-4" />
             </div>
             <span className="text-xs font-bold text-slate-900 tracking-tight">Copilot Discussions</span>
           </div>
@@ -410,26 +408,26 @@ export const CopilotPage: React.FC = () => {
         {/* Sidebar Footer info */}
         <div className="p-3 border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
           <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal-600" /> Grounded in Ledger
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-500" /> Grounded in Ledger
           </span>
-          <span className="font-mono text-[10px] bg-slate-200/80 px-1.5 py-0.5 rounded">Milestone 5</span>
+          <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">Verified</span>
         </div>
       </div>
 
       {/* 2. Main Chat Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
         {/* Chat Top Header */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between shrink-0">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs md:hidden">
-              <Bot className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs md:hidden">
+              <MessageSquare className="w-3.5 h-3.5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                  {activeConversation?.title || 'FinPilot AI Financial Copilot'}
+                  {activeConversation?.title || 'Financial Copilot'}
                 </h2>
-                <Badge variant="teal">Grounding Active</Badge>
+                <Badge variant="neutral">Verified Ledger</Badge>
               </div>
               <p className="text-[11px] text-slate-500">
                 Deterministic calculations & tool-assisted reasoning over accounts, transactions, and cash-flow models
@@ -438,9 +436,9 @@ export const CopilotPage: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <div className="hidden sm:flex items-center space-x-1.5 text-xs text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-              <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Provider: Groq (Llama-3.3-70B) / Offline Mock</span>
+            <div className="hidden sm:flex items-center space-x-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+              <span>Grounding Active</span>
             </div>
           </div>
         </div>
@@ -450,7 +448,7 @@ export const CopilotPage: React.FC = () => {
           {isMessagesLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center space-y-2">
-                <Loader2 className="w-6 h-6 animate-spin text-teal-600 mx-auto" />
+                <Loader2 className="w-6 h-6 animate-spin text-slate-600 mx-auto" />
                 <p className="text-xs text-slate-500">Loading conversation history...</p>
               </div>
             </div>
@@ -466,20 +464,20 @@ export const CopilotPage: React.FC = () => {
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
                       isUser
-                        ? 'bg-navy-900 text-white shadow-xs'
-                        : 'bg-teal-600 text-white shadow-xs'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-800 text-slate-200 shadow-xs'
                     }`}
                   >
-                    {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                    {isUser ? <User className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
                   </div>
 
                   <div
-                    className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                    className={`p-4 rounded-xl text-xs sm:text-sm leading-relaxed ${
                       isUser
-                        ? 'bg-navy-900 text-white rounded-tr-none shadow-xs'
-                        : 'bg-slate-50 text-slate-900 rounded-tl-none border border-slate-200/90 shadow-xs'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-white text-slate-900 border border-slate-200 shadow-xs'
                     }`}
                   >
                     {/* Message Body */}
@@ -529,13 +527,13 @@ export const CopilotPage: React.FC = () => {
 
           {sendMessageMutation.isPending && (
             <div className="flex items-start space-x-3 mr-auto max-w-md">
-              <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
-                <Bot className="w-4 h-4" />
+              <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-200 flex items-center justify-center text-xs shrink-0 shadow-xs">
+                <MessageSquare className="w-3.5 h-3.5" />
               </div>
-              <div className="p-4 rounded-2xl bg-slate-50 text-slate-700 text-xs rounded-tl-none border border-slate-200 flex items-center space-x-2.5">
-                <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                <span className="font-medium animate-pulse">
-                  Querying verified ledger, running tools, and synthesizing grounded answer...
+              <div className="p-3.5 rounded-xl bg-white text-slate-700 text-xs border border-slate-200 flex items-center space-x-2.5 shadow-xs">
+                <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
+                <span className="font-medium text-slate-600">
+                  Calculating ledger metrics and formulating response...
                 </span>
               </div>
             </div>
@@ -545,16 +543,16 @@ export const CopilotPage: React.FC = () => {
         </div>
 
         {/* Follow-up Prompts or Curated Prompts */}
-        <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/80 overflow-x-auto flex items-center gap-1.5 shrink-0 text-xs">
+        <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 overflow-x-auto flex items-center gap-1.5 shrink-0 text-xs">
           <span className="text-[11px] font-semibold text-slate-500 shrink-0 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-teal-600" /> Suggested:
+            <TrendingUp className="w-3 h-3 text-slate-500" /> Quick queries:
           </span>
           {(activeFollowups.length > 0 ? activeFollowups : CURATED_PROMPTS).map((prompt, idx) => (
             <button
               key={idx}
               onClick={() => handleSend(prompt)}
               disabled={sendMessageMutation.isPending}
-              className="whitespace-nowrap px-2.5 py-1 rounded-full bg-white hover:bg-teal-50 hover:text-teal-700 hover:border-teal-300 border border-slate-200 text-slate-700 font-medium transition-all text-[11px] shadow-2xs"
+              className="whitespace-nowrap px-2.5 py-1 rounded-md bg-white hover:bg-slate-100 hover:text-slate-900 border border-slate-200 text-slate-700 font-medium transition-all text-[11px] shadow-2xs"
             >
               {prompt}
             </button>

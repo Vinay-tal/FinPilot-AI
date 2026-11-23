@@ -10,7 +10,7 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-teal-100 selection:text-teal-900;
+    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-slate-200 selection:text-slate-900;
     min-height: 100vh;
   }
 }
