@@ -1,0 +1,9 @@
+.git
+.github
+tests/
+backend/tests/
+frontend/src/test/
+frontend/e2e/
+.pytest_cache/
+*.pyc
+__pycache__/

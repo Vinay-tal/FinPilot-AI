@@ -1,0 +1,9 @@
+{
+  "name": "finpilot-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FinPilot AI - Intelligent Personal Financial Management and Advisory",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build"
+  }
+}
