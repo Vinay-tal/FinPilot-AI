@@ -48,6 +48,7 @@ def seed_system_categories(db: Session) -> Dict[str, TransactionCategory]:
         ).first()
         if not cat:
             cat = TransactionCategory(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.category.{cat_data['slug']}"),
                 name=cat_data["name"],
                 slug=cat_data["slug"],
                 icon=cat_data["icon"],
@@ -70,6 +71,7 @@ def seed_demo_data(db: Session) -> User:
     demo_user = db.query(User).filter(User.email == settings.DEMO_USER_EMAIL.lower()).first()
     if not demo_user:
         demo_user = User(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.user.{settings.DEMO_USER_EMAIL.lower()}"),
             email=settings.DEMO_USER_EMAIL.lower(),
             password_hash=hash_password(settings.DEMO_USER_PASSWORD),
             full_name=settings.DEMO_USER_NAME,
@@ -87,6 +89,7 @@ def seed_demo_data(db: Session) -> User:
     ).first()
     if not hdfc_acct:
         hdfc_acct = FinancialAccount(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "finpilot.account.hdfc"),
             user_id=demo_user.id,
             name="HDFC Salary Savings A/C",
             account_type="SAVINGS",
@@ -104,6 +107,7 @@ def seed_demo_data(db: Session) -> User:
     ).first()
     if not icici_card:
         icici_card = FinancialAccount(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "finpilot.account.icici"),
             user_id=demo_user.id,
             name="ICICI Coral Credit Card",
             account_type="CREDIT_CARD",
@@ -121,6 +125,7 @@ def seed_demo_data(db: Session) -> User:
     ).first()
     if not zerodha_acct:
         zerodha_acct = FinancialAccount(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "finpilot.account.zerodha"),
             user_id=demo_user.id,
             name="Zerodha Demat & Trading",
             account_type="INVESTMENT",
@@ -435,6 +440,8 @@ def seed_demo_data(db: Session) -> User:
                     categorization_confidence=0.99,
                 ))
 
+        for idx, tx in enumerate(transactions_to_add):
+            tx.id = uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.tx.{tx.fingerprint}.{idx}")
         db.add_all(transactions_to_add)
         db.flush()
 
@@ -460,6 +467,7 @@ def seed_demo_data(db: Session) -> User:
             ).first()
             if not existing_b:
                 db.add(Budget(
+                    id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.budget.{slug}.{cur_year}.{cur_month}"),
                     user_id=demo_user.id,
                     category_id=cat.id,
                     month=cur_month,
@@ -486,6 +494,7 @@ def seed_demo_data(db: Session) -> User:
             ).first()
             if not existing_r:
                 db.add(RecurringTransaction(
+                    id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.recurring.{name}"),
                     user_id=demo_user.id,
                     category_id=cat.id,
                     name=name,
@@ -525,6 +534,7 @@ def seed_demo_data(db: Session) -> User:
         ).first()
         if not existing_g:
             db.add(SavingsGoal(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.goal.{g_info['name']}"),
                 user_id=demo_user.id,
                 name=g_info["name"],
                 target_amount_paise=g_info["target_amount_paise"],
@@ -573,6 +583,7 @@ def seed_demo_data(db: Session) -> User:
         ).first()
         if not existing_ins:
             db.add(FinancialInsight(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, f"finpilot.insight.{ins['title']}"),
                 user_id=demo_user.id,
                 insight_type=ins["insight_type"],
                 severity=ins["severity"],

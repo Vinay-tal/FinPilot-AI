@@ -28,6 +28,14 @@ export async function downloadReportCsvApi(month?: number, year?: number): Promi
   if (token) headers['Authorization'] = `Bearer ${token}`
 
   const resp = await fetch(`/api/v1/reports/export/csv${qs}`, { headers })
+  if (!resp.ok) {
+    if (resp.status === 401) {
+      localStorage.removeItem('finpilot_token')
+      localStorage.removeItem('finpilot_user')
+      window.dispatchEvent(new Event('finpilot:unauthorized'))
+    }
+    throw new Error('Failed to export report CSV.')
+  }
   const blob = await resp.blob()
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

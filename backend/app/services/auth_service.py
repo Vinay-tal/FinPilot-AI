@@ -37,7 +37,8 @@ def authenticate_user(db: Session, credentials: UserLogin) -> Tuple[User, str]:
     if not user.is_active:
         raise UnauthorizedException("Account is currently disabled.")
 
-    token = create_access_token(user.id)
+    extra = {"is_demo": True} if user.is_demo else None
+    token = create_access_token(user.id, extra_claims=extra)
     return user, token
 
 def get_demo_user(db: Session) -> Tuple[User, str]:
@@ -48,5 +49,5 @@ def get_demo_user(db: Session) -> Tuple[User, str]:
         from app.db.seed_data import seed_demo_data
         demo_user = seed_demo_data(db)
 
-    token = create_access_token(demo_user.id)
+    token = create_access_token(demo_user.id, extra_claims={"is_demo": True})
     return demo_user, token

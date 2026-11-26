@@ -47,6 +47,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     verifyUser()
   }, [token])
 
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null)
+      setToken(null)
+    }
+    window.addEventListener('finpilot:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('finpilot:unauthorized', handleUnauthorized)
+  }, [])
+
   const login = async (email: string, pass: string) => {
     setIsLoading(true)
     try {

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.security import decode_access_token
 from app.core.exceptions import UnauthorizedException
+from app.core.config import settings
 from app.models.user import User
 
 security_scheme = HTTPBearer(auto_error=False)
@@ -29,6 +30,11 @@ def get_current_user(
         raise UnauthorizedException(f"Invalid or expired token: {str(exc)}")
 
     user = db.query(User).filter(User.id == user_id).first()
+    if not user and payload.get("is_demo") is True:
+        user = db.query(User).filter(User.email == settings.DEMO_USER_EMAIL.lower()).first()
+        if not user:
+            from app.db.seed_data import seed_demo_data
+            user = seed_demo_data(db)
     if not user:
         raise UnauthorizedException("User associated with this token no longer exists.")
     if not user.is_active:

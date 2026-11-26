@@ -49,9 +49,10 @@ export async function apiClient<T>(
 
   if (!response.ok) {
     if (response.status === 401) {
-      // Auto-clear invalid token on auth errors
+      // Auto-clear invalid token on auth errors and sync AuthContext
       localStorage.removeItem('finpilot_token')
       localStorage.removeItem('finpilot_user')
+      window.dispatchEvent(new Event('finpilot:unauthorized'))
     }
 
     const message = data?.message || data?.detail || 'An unexpected error occurred.'
