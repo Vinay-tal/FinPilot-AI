@@ -33,6 +33,8 @@ from app.ml.copilot.tools import (
     execute_get_financial_health_score,
     GetRecommendationsInput,
     execute_get_personalized_recommendations,
+    GetAccountSummaryInput,
+    execute_get_account_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,6 +236,9 @@ def dispatch_tool(db: Session, user_id: uuid.UUID, tool_name: str, arguments_jso
     elif tool_name == "get_personalized_recommendations":
         validated = GetRecommendationsInput(**args)
         return execute_get_personalized_recommendations(db, user_id, validated)
+    elif tool_name == "get_account_summary":
+        validated = GetAccountSummaryInput(**args)
+        return execute_get_account_summary(db, user_id, validated)
     else:
         raise ValueError(f"Unauthorized or unknown tool: {tool_name}")
 
@@ -352,6 +357,50 @@ def extract_citations_and_metadata(tool_name: str, tool_result: Dict[str, Any]) 
                 "additional_wealth_inr": wealth,
                 "progression": tool_result.get("monthly_progression", []),
             }
+
+    elif tool_name == "get_budget_and_goals_progress":
+        spent = tool_result.get("total_budgeted_spent_inr", 0)
+        limit = tool_result.get("total_budgeted_limit_inr", 0)
+        util = tool_result.get("overall_utilization_pct", 0)
+        citations.append({
+            "source": "BUDGET_LEDGER",
+            "title": f"Budgets ({tool_result.get('month', 'Current')})",
+            "value": f"₹{spent:,.0f} / ₹{limit:,.0f}",
+            "detail": f"{util}% overall utilization across {len(tool_result.get('budgets', []))} budgets",
+        })
+        facts.append(f"Budget utilization is {util}% (₹{spent:,.2f} spent of ₹{limit:,.2f} limit).")
+
+    elif tool_name == "get_account_summary":
+        liq = tool_result.get("total_liquid_balance_inr", 0)
+        debt = tool_result.get("total_debt_balance_inr", 0)
+        citations.append({
+            "source": "ACCOUNTS_LEDGER",
+            "title": "Liquid Cash & Assets",
+            "value": f"₹{liq:,.2f}",
+            "detail": f"{len(tool_result.get('accounts', []))} connected accounts (Debt: ₹{debt:,.2f})",
+        })
+        facts.append(f"Verified ₹{liq:,.2f} liquid balance across {len(tool_result.get('accounts', []))} active accounts.")
+
+    elif tool_name == "get_financial_health_score":
+        score = tool_result.get("overall_score", 0)
+        grade = tool_result.get("grade", "Fair")
+        citations.append({
+            "source": "HEALTH_SCORE_ENGINE",
+            "title": "Financial Health Score",
+            "value": f"{score}/100 ({grade})",
+            "detail": "Calculated from savings rate, liquidity reserve, and budget adherence",
+        })
+        facts.append(f"Calculated financial health score at {score}/100 ({grade}).")
+
+    elif tool_name == "get_personalized_recommendations":
+        recs = tool_result.get("recommendations", [])
+        citations.append({
+            "source": "RECOMMENDATION_ENGINE",
+            "title": "Active Insights",
+            "value": f"{len(recs)} recommendations",
+            "detail": "Deterministic spending and savings opportunities",
+        })
+        facts.append(f"Generated {len(recs)} personalized recommendations from recent ledger trends.")
 
     elif tool_name == "get_financial_health_score":
         score = tool_result.get("overall_score", 0)
@@ -501,14 +550,14 @@ def process_copilot_turn(
             ],
         }
 
-    # 3. Prepare messages for provider
-    past_messages = (
+    # 3. Prepare most recent messages for provider
+    past_messages = list(reversed(
         db.query(ChatMessage)
         .filter(ChatMessage.conversation_id == conv.id)
-        .order_by(ChatMessage.created_at.asc())
+        .order_by(ChatMessage.created_at.desc())
         .limit(10)
         .all()
-    )
+    ))
 
     llm_history = []
     for m in past_messages:

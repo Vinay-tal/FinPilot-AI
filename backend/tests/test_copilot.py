@@ -341,3 +341,104 @@ def test_copilot_legacy_compatibility(client: TestClient, auth_user: dict):
     assert "answer" in data
     assert "citations" in data
     assert "suggested_followups" in data
+
+# ============================================================================
+# 9. Custom Queries: Categories, Merchants, Budgets, Accounts, Greetings
+# ============================================================================
+
+def test_copilot_custom_queries_categories_budgets_and_accounts(
+    client: TestClient,
+    auth_user: dict,
+    db_session: Session,
+    test_categories: dict,
+):
+    from app.models.budget import Budget
+    from app.models.goal import SavingsGoal
+
+    headers = {"Authorization": f"Bearer {auth_user['token']}"}
+    user_id = uuid.UUID(auth_user["user"]["id"])
+
+    account = FinancialAccount(
+        user_id=user_id,
+        name="HDFC Primary",
+        account_type="SAVINGS",
+        institution="HDFC Bank",
+        balance_paise=12500000,  # ₹1,25,000
+        currency="INR",
+        is_active=True,
+    )
+    db_session.add(account)
+    db_session.flush()
+
+    groc_cat = test_categories["groceries-essentials"]
+    tx = Transaction(
+        user_id=user_id,
+        account_id=account.id,
+        category_id=groc_cat.id,
+        date=date.today(),
+        amount_paise=185000,  # ₹1,850
+        transaction_type="DEBIT",
+        narration="Blinkit Morning Groceries",
+        merchant_name="Blinkit",
+        fingerprint=f"fp-blinkit-{uuid.uuid4().hex}",
+    )
+    budget = Budget(
+        user_id=user_id,
+        category_id=groc_cat.id,
+        month=date.today().month,
+        year=date.today().year,
+        amount_paise=1000000,  # ₹10,000
+        alert_threshold=0.80,
+    )
+    goal = SavingsGoal(
+        user_id=user_id,
+        name="Emergency Buffer",
+        target_amount_paise=20000000,
+        current_amount_paise=12500000,
+        target_date=date.today() + timedelta(days=180),
+        status="IN_PROGRESS",
+    )
+    db_session.add_all([tx, budget, goal])
+    db_session.flush()
+
+    c_res = client.post("/api/v1/copilot/conversations", json={"title": "Custom Test"}, headers=headers)
+    conv_id = c_res.json()["id"]
+
+    # 1. Custom singular grocery question ("what about grocery")
+    r_groc = client.post(
+        f"/api/v1/copilot/conversations/{conv_id}/messages",
+        json={"query": "what about grocery"},
+        headers=headers,
+    )
+    assert r_groc.status_code == 200
+    assert "₹1,850.00" in r_groc.json()["answer"]
+    assert "Blinkit" in r_groc.json()["answer"]
+
+    # 2. Budgets & goals question
+    r_bud = client.post(
+        f"/api/v1/copilot/conversations/{conv_id}/messages",
+        json={"query": "how are my budgets and goals doing?"},
+        headers=headers,
+    )
+    assert r_bud.status_code == 200
+    assert "Groceries & Essentials" in r_bud.json()["answer"]
+    assert "Emergency Buffer" in r_bud.json()["answer"]
+
+    # 3. Account balance question
+    r_bal = client.post(
+        f"/api/v1/copilot/conversations/{conv_id}/messages",
+        json={"query": "what is my current bank balance?"},
+        headers=headers,
+    )
+    assert r_bal.status_code == 200
+    assert "HDFC Primary" in r_bal.json()["answer"]
+    assert "1,25,000" in r_bal.json()["answer"] or "125,000" in r_bal.json()["answer"]
+
+    # 4. Greeting
+    r_hi = client.post(
+        f"/api/v1/copilot/conversations/{conv_id}/messages",
+        json={"query": "hi"},
+        headers=headers,
+    )
+    assert r_hi.status_code == 200
+    assert "FinPilot Financial Copilot" in r_hi.json()["answer"]

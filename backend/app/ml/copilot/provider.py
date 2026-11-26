@@ -1,7 +1,9 @@
+import calendar
 import json
 import logging
 import re
 from abc import ABC, abstractmethod
+from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Iterator, Tuple
 
 from app.core.config import settings
@@ -159,14 +161,109 @@ class GroqProvider(BaseLLMProvider):
 
 class MockLLMProvider(BaseLLMProvider):
     """
-    Deterministic offline provider that mirrors real model reasoning:
-    1. If called without tool output, inspects user prompt and requests the appropriate tool.
-    2. If called with tool output, synthesizes clean, accurate, grounded explanations.
+    Deterministic offline provider that handles both standard and custom natural-language
+    financial queries against real database tools:
+    1. Parses intents, categories, merchants, amounts, and date windows.
+    2. Requests grounded tool execution.
+    3. Synthesizes accurate, transparent, Markdown-formatted explanations.
     """
+
+    CATEGORY_KEYWORDS: List[Tuple[str, str, List[str]]] = [
+        ("groceries-essentials", "DEBIT", ["grocery", "groceries", "supermarket", "vegetable", "vegetables", "fruits", "milk", "essentials", "kirana"]),
+        ("food-dining", "DEBIT", ["food", "dining", "eat", "eating", "restaurant", "restaurants", "cafe", "lunch", "dinner", "breakfast", "coffee", "snacks"]),
+        ("housing-rent", "DEBIT", ["rent", "housing", "landlord", "apartment", "flat"]),
+        ("utilities-bills", "DEBIT", ["utility", "utilities", "electricity", "power", "water", "gas", "internet", "wifi", "broadband", "fibernet", "mobile", "recharge"]),
+        ("transportation-fuel", "DEBIT", ["transport", "transportation", "travel", "commute", "fuel", "petrol", "diesel", "cab", "taxi", "metro", "auto"]),
+        ("shopping-lifestyle", "DEBIT", ["shopping", "shop", "clothes", "apparel", "fashion", "electronics", "lifestyle"]),
+        ("entertainment-ott", "DEBIT", ["entertainment", "ott", "movie", "movies", "cinema", "streaming", "concert"]),
+        ("subscriptions", "DEBIT", ["subscription", "subscriptions", "membership", "memberships"]),
+        ("education", "DEBIT", ["education", "learning", "course", "courses", "book", "books", "tuition"]),
+        ("investments-sip", "DEBIT", ["sip", "mutual fund", "invest", "investment", "investments", "mf"]),
+        ("health-fitness", "DEBIT", ["health", "fitness", "gym", "medical", "doctor", "pharmacy", "medicine", "hospital"]),
+        ("fees-charges", "DEBIT", ["fee", "fees", "penalty", "bank charge", "bank charges"]),
+        ("transfers", "DEBIT", ["transfer", "transfers", "remittance"]),
+        ("salary", "CREDIT", ["salary", "paycheck", "wages"]),
+        ("freelance", "CREDIT", ["freelance", "consulting"]),
+        ("investment-returns", "CREDIT", ["dividend", "interest", "returns", "investment return"]),
+        ("refunds-cashback", "CREDIT", ["refund", "refunds", "cashback"]),
+    ]
+
+    KNOWN_MERCHANTS: List[str] = [
+        "swiggy", "zomato", "zepto", "blinkit", "bigbasket", "dmart",
+        "uber", "ola", "rapido", "amazon", "flipkart", "myntra", "ajio",
+        "netflix", "spotify", "hotstar", "bescom", "act fibernet", "jio",
+        "airtel", "toit", "starbucks", "cult", "zerodha", "infosys",
+        "apollo", "pharmeasy", "nykaa", "irctc", "makemytrip",
+    ]
+
+    MONTH_NAMES: Dict[str, int] = {
+        "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3,
+        "april": 4, "apr": 4, "may": 5, "june": 6, "jun": 6,
+        "july": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9,
+        "october": 10, "oct": 10, "november": 11, "nov": 11, "december": 12, "dec": 12,
+    }
 
     @property
     def name(self) -> str:
         return "mock-deterministic-v1"
+
+    @staticmethod
+    def _has_keyword(text: str, keywords: List[str]) -> bool:
+        for kw in keywords:
+            if re.search(r"\b" + re.escape(kw) + r"\b", text):
+                return True
+        return False
+
+    def _extract_date_range(self, text: str) -> Tuple[Optional[str], Optional[str]]:
+        today = date.today()
+        if any(p in text for p in ["last month", "previous month", "past month"]):
+            first_curr = date(today.year, today.month, 1)
+            last_prev = first_curr - timedelta(days=1)
+            first_prev = date(last_prev.year, last_prev.month, 1)
+            return first_prev.isoformat(), last_prev.isoformat()
+        if any(p in text for p in ["last 3 months", "past 3 months", "90 days", "3 months", "quarter"]):
+            return (today - timedelta(days=90)).isoformat(), today.isoformat()
+        if any(p in text for p in ["last 6 months", "past 6 months", "6 months", "six months"]):
+            return (today - timedelta(days=180)).isoformat(), today.isoformat()
+        if any(p in text for p in ["this year", "ytd", "year to date", "last 12 months", "whole year"]):
+            return date(today.year, 1, 1).isoformat(), today.isoformat()
+        if any(p in text for p in ["last week", "past week", "7 days", "this week"]):
+            return (today - timedelta(days=7)).isoformat(), today.isoformat()
+        if "today" in text:
+            return today.isoformat(), today.isoformat()
+
+        for m_name, m_num in self.MONTH_NAMES.items():
+            if re.search(r"\b" + m_name + r"\b", text):
+                yr = today.year if m_num <= today.month else today.year - 1
+                last_day = calendar.monthrange(yr, m_num)[1]
+                return date(yr, m_num, 1).isoformat(), date(yr, m_num, last_day).isoformat()
+
+        return None, None
+
+    @staticmethod
+    def _extract_amount(text: str, default: float) -> float:
+        m = re.search(r"(\d+(?:,\d+)*(?:\.\d+)?)\s*(k|lakh|lakhs|lac|l)?\b", text)
+        if not m:
+            return default
+        val = float(m.group(1).replace(",", ""))
+        unit = (m.group(2) or "").lower()
+        if unit == "k":
+            val *= 1000.0
+        elif unit in ("lakh", "lakhs", "lac", "l"):
+            val *= 100000.0
+        return val
+
+    def _match_category(self, text: str) -> Optional[Tuple[str, str]]:
+        for slug, tx_type, keywords in self.CATEGORY_KEYWORDS:
+            if self._has_keyword(text, keywords):
+                return slug, tx_type
+        return None
+
+    def _match_merchant(self, text: str) -> Optional[str]:
+        for merch in self.KNOWN_MERCHANTS:
+            if re.search(r"\b" + re.escape(merch) + r"\b", text):
+                return merch.title()
+        return None
 
     def generate(
         self,
@@ -187,30 +284,32 @@ class MockLLMProvider(BaseLLMProvider):
 
             return self._synthesize_tool_response(tool_name, tool_data, messages)
 
-        # Otherwise, inspect latest user message to pick tool
-        user_msg = ""
-        for m in reversed(messages):
-            if m.get("role") == "user":
-                user_msg = m.get("content", "").lower()
-                break
+        # Inspect latest and previous user message (for follow-ups)
+        user_msgs = [m.get("content", "").lower().strip() for m in messages if m.get("role") == "user"]
+        user_msg = user_msgs[-1] if user_msgs else ""
+        prev_user_msg = user_msgs[-2] if len(user_msgs) >= 2 else ""
 
-        # 1. Food / Dining / Swiggy / Category spend
-        if any(w in user_msg for w in ["food", "dining", "swiggy", "zomato", "eat", "restaurant", "groceries", "shopping"]):
-            cat_slug = "food-dining" if any(w in user_msg for w in ["food", "dining", "swiggy", "zomato"]) else "shopping"
+        # 0. Pure greeting / help queries (only if no financial terms are in message)
+        clean_alpha = re.sub(r"[^a-z\s]", "", user_msg).strip()
+        greeting_phrases = {"hi", "hello", "hey", "hii", "hiii", "good morning", "good afternoon", "good evening", "thanks", "thank you", "ok", "okay", "help", "what can you do", "who are you"}
+        if clean_alpha in greeting_phrases:
             return ProviderResult(
-                tool_calls=[{
-                    "id": "call_tx_1",
-                    "type": "function",
-                    "function": {
-                        "name": "query_aggregate_transactions",
-                        "arguments": json.dumps({"category_slug": cat_slug, "transaction_type": "DEBIT"}),
-                    },
-                }],
+                content=(
+                    "Hello! I am your **FinPilot Financial Copilot**, connected directly to your verified accounts, transactions, budgets, and forecast models.\n\n"
+                    "Feel free to ask any custom question, such as:\n"
+                    "- *\"What about grocery spending this month?\"* or *\"How much did I spend on Swiggy?\"*\n"
+                    "- *\"What is my current account balance and savings rate?\"*\n"
+                    "- *\"How are my budgets and goals tracking?\"*\n"
+                    "- *\"Can I afford a ₹25,000 purchase right now?\"*\n"
+                    "- *\"Compare my spending this month vs last month\"*"
+                ),
                 provider_used=self.name,
             )
 
-        # 2. Compare periods / increased the most vs last month
-        if any(w in user_msg for w in ["increased", "compared", "last month", "vs last month", "more than last"]):
+        start_date, end_date = self._extract_date_range(user_msg)
+
+        # 1. Compare periods / increased the most vs last month
+        if any(w in user_msg for w in ["increased", "compared", "vs last month", "more than last", "month over month", "mom"]):
             return ProviderResult(
                 tool_calls=[{
                     "id": "call_comp_1",
@@ -223,11 +322,9 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 3. Afford purchase without dropping below emergency reserve
-        if any(w in user_msg for w in ["afford", "buy", "purchase", "emergency reserve", "drop below"]):
-            # Extract number if present
-            nums = re.findall(r'\d+', user_msg.replace(",", ""))
-            purchase_amt = float(nums[0]) if nums else 15000.0
+        # 2. Afford purchase without dropping below emergency reserve
+        if any(w in user_msg for w in ["afford", "can i buy", "should i buy", "purchase", "emergency reserve", "drop below"]):
+            purchase_amt = self._extract_amount(user_msg, 15000.0)
             return ProviderResult(
                 tool_calls=[{
                     "id": "call_scen_1",
@@ -244,24 +341,9 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 4. Predict low balance near month-end / forecast
-        if any(w in user_msg for w in ["predict", "forecast", "low balance", "month-end", "near month-end", "shortfall"]):
-            return ProviderResult(
-                tool_calls=[{
-                    "id": "call_fc_1",
-                    "type": "function",
-                    "function": {
-                        "name": "get_cashflow_forecast",
-                        "arguments": json.dumps({"horizon_days": 30}),
-                    },
-                }],
-                provider_used=self.name,
-            )
-
-        # 5. Reduce spending / cut spending
-        if any(w in user_msg for w in ["reduce spending", "cut spending", "save 2000", "reduce by", "save extra"]):
-            nums = re.findall(r'\d+', user_msg.replace(",", ""))
-            cut_amt = float(nums[0]) if nums else 2000.0
+        # 3. Reduce spending / cut spending
+        if any(w in user_msg for w in ["reduce spending", "cut spending", "save 2000", "reduce by", "save extra", "cut down", "how can i save", "where can i save"]):
+            cut_amt = self._extract_amount(user_msg, 2000.0)
             return ProviderResult(
                 tool_calls=[{
                     "id": "call_scen_2",
@@ -277,8 +359,22 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 6. Recurring payments / bills due soon
-        if any(w in user_msg for w in ["recurring", "due soon", "bills", "subscriptions", "payments due"]):
+        # 4. Predict low balance near month-end / forecast
+        if any(w in user_msg for w in ["predict", "forecast", "low balance", "month-end", "near month-end", "shortfall", "projected balance"]):
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_fc_1",
+                    "type": "function",
+                    "function": {
+                        "name": "get_cashflow_forecast",
+                        "arguments": json.dumps({"horizon_days": 30}),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 5. Recurring payments / bills due soon
+        if any(w in user_msg for w in ["recurring", "due soon", "upcoming bill", "upcoming payment", "payments due", "auto-debit", "mandate", "bills"]):
             return ProviderResult(
                 tool_calls=[{
                     "id": "call_rec_1",
@@ -291,8 +387,8 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 7. Six months savings under different assumptions
-        if any(w in user_msg for w in ["six months", "6 months", "save in", "savings assumption"]):
+        # 6. Six months savings under different assumptions
+        if any(w in user_msg for w in ["six months", "6 months", "save in", "savings assumption", "how much could i save"]):
             return ProviderResult(
                 tool_calls=[{
                     "id": "call_scen_3",
@@ -309,7 +405,7 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 8. Financial Health Score
+        # 7. Financial Health Score
         if any(w in user_msg for w in ["health score", "financial health", "my score", "grade", "wellness score"]):
             return ProviderResult(
                 tool_calls=[{
@@ -323,7 +419,7 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # 9. Personalized Recommendations
+        # 8. Personalized Recommendations
         if any(w in user_msg for w in ["recommendation", "recommendations", "suggest", "tips", "advice", "advise"]):
             return ProviderResult(
                 tool_calls=[{
@@ -337,14 +433,167 @@ class MockLLMProvider(BaseLLMProvider):
                 provider_used=self.name,
             )
 
-        # Default fallback: inspect budgets and goals
+        # 9. Budgets & Goals progress
+        if self._has_keyword(user_msg, ["budget", "budgets", "overspend", "over budget", "pacing", "goal", "goals", "emergency fund", "vacation"]):
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_bg_1",
+                    "type": "function",
+                    "function": {
+                        "name": "get_budget_and_goals_progress",
+                        "arguments": json.dumps({"include_goals": True}),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 10. Specific Merchant Lookup (Swiggy, Zomato, Zepto, Blinkit, Uber, Amazon, etc.)
+        matched_merchant = self._match_merchant(user_msg)
+        if matched_merchant:
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_merch_1",
+                    "type": "function",
+                    "function": {
+                        "name": "query_aggregate_transactions",
+                        "arguments": json.dumps({
+                            "merchant_keyword": matched_merchant,
+                            "transaction_type": "DEBIT",
+                            "start_date": start_date,
+                            "end_date": end_date,
+                        }),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 11. Specific Category Lookup (Groceries, Food, Rent, Utilities, Transport, Health, SIP, Salary, etc.)
+        matched_cat = self._match_category(user_msg)
+        if matched_cat:
+            cat_slug, tx_type = matched_cat
+            # For salary/income in current month if no start_date specified, default to last_30_days if empty? Keep query_aggregate_transactions exact.
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_cat_1",
+                    "type": "function",
+                    "function": {
+                        "name": "query_aggregate_transactions",
+                        "arguments": json.dumps({
+                            "category_slug": cat_slug,
+                            "transaction_type": tx_type,
+                            "start_date": start_date,
+                            "end_date": end_date,
+                        }),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 12. Account Balance, Net Worth, Savings Rate, Cards, Overview
+        if any(w in user_msg for w in ["balance", "account", "accounts", "cash", "liquid", "net worth", "savings", "debt", "credit card", "hdfc", "icici", "overview", "summary", "how much money", "how am i doing", "status"]):
+            period = "current_month" if "this month" in user_msg else ("last_90_days" if "3 months" in user_msg else "last_30_days")
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_acct_1",
+                    "type": "function",
+                    "function": {
+                        "name": "get_account_summary",
+                        "arguments": json.dumps({"period": period}),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 13. General Spending / Income / Custom Merchant phrases ("how much did I spend", "what about X", "spent on X")
+        if any(w in user_msg for w in ["spend", "spent", "spending", "expense", "expenses", "paid", "transactions", "debit", "money go", "biggest", "top"]):
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_all_tx_1",
+                    "type": "function",
+                    "function": {
+                        "name": "query_aggregate_transactions",
+                        "arguments": json.dumps({
+                            "category_slug": None,
+                            "transaction_type": "DEBIT",
+                            "start_date": start_date,
+                            "end_date": end_date,
+                        }),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        if any(w in user_msg for w in ["earn", "earned", "income", "credit", "credits", "received"]):
+            return ProviderResult(
+                tool_calls=[{
+                    "id": "call_all_cr_1",
+                    "type": "function",
+                    "function": {
+                        "name": "query_aggregate_transactions",
+                        "arguments": json.dumps({
+                            "category_slug": None,
+                            "transaction_type": "CREDIT",
+                            "start_date": start_date or (date.today() - timedelta(days=30)).isoformat(),
+                            "end_date": end_date,
+                        }),
+                    },
+                }],
+                provider_used=self.name,
+            )
+
+        # 14. Follow-up time shift ("what about last month?", "and October?") carrying over previous category/merchant
+        if (start_date or end_date) and prev_user_msg:
+            prev_cat = self._match_category(prev_user_msg)
+            prev_merch = self._match_merchant(prev_user_msg)
+            if prev_merch or prev_cat:
+                return ProviderResult(
+                    tool_calls=[{
+                        "id": "call_followup_1",
+                        "type": "function",
+                        "function": {
+                            "name": "query_aggregate_transactions",
+                            "arguments": json.dumps({
+                                "category_slug": prev_cat[0] if prev_cat else None,
+                                "merchant_keyword": prev_merch,
+                                "transaction_type": prev_cat[1] if prev_cat else "DEBIT",
+                                "start_date": start_date,
+                                "end_date": end_date,
+                            }),
+                        },
+                    }],
+                    provider_used=self.name,
+                )
+
+        # 15. Custom "what about <keyword>" / "how much on <keyword>" merchant search
+        custom_kw_match = re.search(r"(?:what about|how about|how much (?:did i spend )?(?:on|at|for)|spent on|show me)\s+([a-z0-9][a-z0-9\s\-]{1,25})$", clean_alpha)
+        if custom_kw_match:
+            kw = custom_kw_match.group(1).strip()
+            if kw and kw not in {"it", "this", "that", "them", "today", "this month", "last month"}:
+                return ProviderResult(
+                    tool_calls=[{
+                        "id": "call_custom_kw_1",
+                        "type": "function",
+                        "function": {
+                            "name": "query_aggregate_transactions",
+                            "arguments": json.dumps({
+                                "merchant_keyword": kw,
+                                "transaction_type": "ALL",
+                                "start_date": start_date or (date.today() - timedelta(days=90)).isoformat(),
+                                "end_date": end_date,
+                            }),
+                        },
+                    }],
+                    provider_used=self.name,
+                )
+
+        # 16. Rich Default Fallback: Account & Financial Summary (never returns generic "Tool output verified")
         return ProviderResult(
             tool_calls=[{
-                "id": "call_bg_1",
+                "id": "call_summary_default",
                 "type": "function",
                 "function": {
-                    "name": "get_budget_and_goals_progress",
-                    "arguments": json.dumps({"include_goals": True}),
+                    "name": "get_account_summary",
+                    "arguments": json.dumps({"period": "last_30_days"}),
                 },
             }],
             provider_used=self.name,
@@ -354,22 +603,40 @@ class MockLLMProvider(BaseLLMProvider):
         if tool_name == "query_aggregate_transactions":
             total = data.get("total_amount_inr", 0)
             count = data.get("transaction_count", 0)
-            cat_name = data.get("category_name", "Food & Dining")
+            cat_name = data.get("category_name", "All Categories")
+            tx_type = data.get("transaction_type", "DEBIT")
+            start_d = data.get("start_date", "")
+            end_d = data.get("end_date", "")
             avg = data.get("average_amount_inr", 0)
             top_merchants = data.get("top_merchants", [])
-            merch_str = ", ".join(f"{m['merchant']} (₹{m['total_spent_inr']:,.2f})" for m in top_merchants[:3])
+            top_categories = data.get("top_categories", [])
+            samples = data.get("recent_samples", [])
+
+            verb = "received" if tx_type == "CREDIT" else "spent"
+            merch_str = ", ".join(f"{m['merchant']} (₹{m['total_spent_inr']:,.2f})" for m in top_merchants[:4])
 
             ans = (
-                f"### {cat_name} Spending Breakdown\n\n"
-                f"Based on your verified bank transactions, you have spent a total of **₹{total:,.2f}** across **{count} transactions** "
-                f"this period (average: **₹{avg:,.2f}** per transaction).\n\n"
+                f"### {cat_name} {'Inflow' if tx_type == 'CREDIT' else 'Spending'} Breakdown\n\n"
+                f"Based on your verified bank transactions ({start_d} to {end_d}), you have {verb} a total of **₹{total:,.2f}** across **{count} transactions**"
             )
+            if count > 0:
+                ans += f" (average: **₹{avg:,.2f}** per transaction).\n\n"
+            else:
+                ans += ".\n\nNo matching settled transactions were found in this period. Try asking about another month (e.g., *\"last month\"* or *\"last 3 months\"*).\n\n"
+
+            if cat_name == "All Categories" and top_categories:
+                ans += "**Top categories in this period:**\n"
+                for c in top_categories[:5]:
+                    ans += f"- **{c['category']}**: ₹{c['total_spent_inr']:,.2f}\n"
+                ans += "\n"
+
             if top_merchants:
                 ans += f"**Top merchants:** {merch_str}.\n\n"
-            ans += (
-                f"> **Observed Fact**: All transactions are verified and settled on your accounts. "
-                f"Frequent online delivery orders represent your primary day-to-day burn rate."
-            )
+
+            if samples and count > 0:
+                ans += "**Recent entries:** " + ", ".join(f"{s['date']} {s['merchant']} (₹{s['amount_inr']:,.0f})" for s in samples[:3]) + ".\n\n"
+
+            ans += "> **Observed Fact**: All figures above are aggregated directly from settled ledger postings on your connected accounts."
             return ProviderResult(content=ans, provider_used=self.name)
 
         elif tool_name == "compare_time_periods":
@@ -534,9 +801,84 @@ class MockLLMProvider(BaseLLMProvider):
 
             return ProviderResult(content=ans, provider_used=self.name)
 
+        elif tool_name == "get_budget_and_goals_progress":
+            month = data.get("month", "Current Month")
+            tot_spent = data.get("total_budgeted_spent_inr", 0)
+            tot_limit = data.get("total_budgeted_limit_inr", 0)
+            util = data.get("overall_utilization_pct", 0)
+            budgets = data.get("budgets", [])
+            goals = data.get("goals", [])
+
+            ans = (
+                f"### Budgets & Savings Goals ({month})\n\n"
+                f"Overall budget utilization stands at **{util}%** (**₹{tot_spent:,.2f}** spent out of **₹{tot_limit:,.2f}** total limits).\n\n"
+            )
+            if budgets:
+                ans += "**Category Budget Pacing:**\n"
+                for b in budgets:
+                    flag = "Over Limit" if b.get("is_exceeded") else ("Near Limit" if b.get("percent_used", 0) >= 80 else "On Track")
+                    ans += (
+                        f"- **{b['category_name']}**: ₹{b['spent_inr']:,.0f} / ₹{b['monthly_limit_inr']:,.0f} "
+                        f"(**{b['percent_used']}%** — {flag}, ₹{b['remaining_inr']:,.0f} remaining)\n"
+                    )
+                ans += "\n"
+
+            if goals:
+                ans += "**Active Savings Goals:**\n"
+                for g in goals:
+                    ans += (
+                        f"- **{g['goal_name']}**: ₹{g['current_saved_inr']:,.0f} / ₹{g['target_amount_inr']:,.0f} "
+                        f"(**{g['progress_pct']}%** complete"
+                        + (f", target: {g['target_date']}" if g.get("target_date") else "")
+                        + ")\n"
+                    )
+                ans += "\n"
+
+            ans += "> **Observed Fact**: Figures reflect real-time debits against your monthly category allocations and goal balances."
+            return ProviderResult(content=ans, provider_used=self.name)
+
+        elif tool_name == "get_account_summary":
+            liq = data.get("total_liquid_balance_inr", 0)
+            debt = data.get("total_debt_balance_inr", 0)
+            inc = data.get("total_income_inr", 0)
+            exp = data.get("total_expenses_inr", 0)
+            net = data.get("net_savings_inr", 0)
+            s_rate = data.get("savings_rate", 0)
+            score = data.get("health_score", 0)
+            grade = data.get("health_grade", "")
+            accounts = data.get("accounts", [])
+            top_cats = data.get("top_categories", [])
+            period_label = (data.get("period") or "last_30_days").replace("_", " ")
+
+            ans = (
+                f"### Financial Accounts & Summary ({period_label})\n\n"
+                f"- **Total Liquid Assets:** ₹{liq:,.2f}\n"
+                f"- **Outstanding Credit/Debt:** ₹{debt:,.2f}\n"
+                f"- **Period Cash Flow:** ₹{inc:,.2f} inflows vs ₹{exp:,.2f} expenses "
+                f"(Net: **{'+' if net >= 0 else ''}₹{net:,.2f}**, Savings Rate: **{s_rate:.1f}%**)\n"
+                f"- **Financial Health Score:** **{score}/100** ({grade})\n\n"
+            )
+            if accounts:
+                ans += "**Connected Accounts:**\n"
+                for a in accounts:
+                    ans += f"- **{a['name']}** ({a['institution']}): ₹{a['balance_inr']:,.2f}\n"
+                ans += "\n"
+
+            if top_cats:
+                ans += "**Top Spending Categories:**\n"
+                for c in top_cats:
+                    ans += f"- **{c['category_name']}**: ₹{c['spent_inr']:,.2f} ({c['percentage_share']}%)\n"
+                ans += "\n"
+
+            ans += (
+                "> **Tip**: Ask me about any specific category (e.g., *\"groceries\"*, *\"rent\"*, *\"utilities\"*), "
+                "merchant (*\"Swiggy\"*, *\"Blinkit\"*), budgets, recurring bills, or affordability checks."
+            )
+            return ProviderResult(content=ans, provider_used=self.name)
+
         # Fallback
         return ProviderResult(
-            content=f"Processed financial query grounded in your ledger records. Tool output verified successfully.",
+            content="Processed financial query grounded in your ledger records.",
             provider_used=self.name,
         )
 

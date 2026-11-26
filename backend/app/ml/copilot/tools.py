@@ -76,24 +76,38 @@ def execute_query_transactions(db: Session, user_id: uuid.UUID, params: QueryTra
 
     # Merchant frequency & spend breakdown
     merchant_totals: Dict[str, float] = {}
+    category_totals: Dict[str, float] = {}
     for t in txs:
         m_name = t.merchant_name or t.narration[:25]
         merchant_totals[m_name] = merchant_totals.get(m_name, 0.0) + (t.amount_paise / 100.0)
+        if t.category_id and t.category:
+            c_name = t.category.name
+            category_totals[c_name] = category_totals.get(c_name, 0.0) + (t.amount_paise / 100.0)
 
     top_merchants = [
         {"merchant": sanitize_user_input(k[:30]), "total_spent_inr": round(v, 2)}
         for k, v in sorted(merchant_totals.items(), key=lambda x: x[1], reverse=True)[:5]
     ]
+    top_categories = [
+        {"category": k, "total_spent_inr": round(v, 2)}
+        for k, v in sorted(category_totals.items(), key=lambda x: x[1], reverse=True)[:6]
+    ]
+
+    display_category = matched_category_name or (
+        f"Merchant: {params.merchant_keyword}" if params.merchant_keyword else (params.category_slug or "All Categories")
+    )
 
     return {
         "start_date": s_date.isoformat(),
         "end_date": e_date.isoformat(),
-        "category_name": matched_category_name or params.category_slug or "All Categories",
+        "category_name": display_category,
+        "merchant_keyword": params.merchant_keyword,
         "transaction_type": params.transaction_type or "DEBIT",
         "total_amount_inr": total_inr,
         "transaction_count": count,
         "average_amount_inr": avg_inr,
         "top_merchants": top_merchants,
+        "top_categories": top_categories,
         "recent_samples": [
             {
                 "date": t.date.isoformat(),
@@ -101,7 +115,7 @@ def execute_query_transactions(db: Session, user_id: uuid.UUID, params: QueryTra
                 "amount_inr": round(t.amount_paise / 100.0, 2),
                 "type": t.transaction_type,
             }
-            for t in txs[:3]
+            for t in txs[:5]
         ],
     }
 
@@ -206,36 +220,39 @@ def execute_get_recurring(db: Session, user_id: uuid.UUID, params: GetRecurringI
     today = date.today()
     cutoff_date = today + timedelta(days=params.due_within_days)
 
-    q = db.query(RecurringTransaction).filter(
+    items = db.query(RecurringTransaction).filter(
         RecurringTransaction.user_id == user_id,
         RecurringTransaction.is_active == True,
-    )
-    if params.transaction_type and params.transaction_type.upper() in ["DEBIT", "CREDIT"]:
-        q = q.filter(RecurringTransaction.transaction_type == params.transaction_type.upper())
-
-    items = q.all()
+    ).all()
 
     upcoming_list = []
     total_upcoming_debits_paise = 0
     total_upcoming_credits_paise = 0
 
     for item in items:
+        cat = db.query(TransactionCategory).filter(TransactionCategory.id == item.category_id).first() if item.category_id else None
+        tx_type = "CREDIT" if (cat and cat.is_income) else "DEBIT"
+        if params.transaction_type and params.transaction_type.upper() in ["DEBIT", "CREDIT"]:
+            if tx_type != params.transaction_type.upper():
+                continue
+
         # Determine next due date
         next_d = item.next_expected_date or today
         days_until = (next_d - today).days
 
         if next_d <= cutoff_date:
-            amt_inr = round(item.amount_paise / 100.0, 2)
-            if item.transaction_type == "DEBIT":
-                total_upcoming_debits_paise += item.amount_paise
+            amt_paise = item.expected_amount_paise
+            amt_inr = round(amt_paise / 100.0, 2)
+            if tx_type == "DEBIT":
+                total_upcoming_debits_paise += amt_paise
             else:
-                total_upcoming_credits_paise += item.amount_paise
+                total_upcoming_credits_paise += amt_paise
 
             upcoming_list.append({
                 "id": str(item.id),
-                "name": item.merchant_name or item.narration_pattern,
+                "name": item.name or item.merchant_name,
                 "amount_inr": amt_inr,
-                "transaction_type": item.transaction_type,
+                "transaction_type": tx_type,
                 "frequency": item.frequency,
                 "next_expected_date": next_d.isoformat(),
                 "days_until_due": days_until,
@@ -283,12 +300,13 @@ def execute_get_budget_and_goals(db: Session, user_id: uuid.UUID, params: GetBud
             Transaction.date <= today,
         ).scalar() or 0
 
-        limit_inr = round(b.limit_paise / 100.0, 2)
+        limit_paise = b.amount_paise
+        limit_inr = round(limit_paise / 100.0, 2)
         spent_inr = round(spent_paise / 100.0, 2)
-        remaining_inr = round(max(0, b.limit_paise - spent_paise) / 100.0, 2)
-        pct_used = round((spent_paise / b.limit_paise) * 100.0, 1) if b.limit_paise > 0 else 0.0
+        remaining_inr = round(max(0, limit_paise - spent_paise) / 100.0, 2)
+        pct_used = round((spent_paise / limit_paise) * 100.0, 1) if limit_paise > 0 else 0.0
 
-        total_budget_limit_paise += b.limit_paise
+        total_budget_limit_paise += limit_paise
         total_budget_spent_paise += spent_paise
 
         cat = db.query(TransactionCategory).filter(TransactionCategory.id == b.category_id).first()
@@ -300,7 +318,7 @@ def execute_get_budget_and_goals(db: Session, user_id: uuid.UUID, params: GetBud
             "spent_inr": spent_inr,
             "remaining_inr": remaining_inr,
             "percent_used": pct_used,
-            "is_exceeded": spent_paise > b.limit_paise,
+            "is_exceeded": spent_paise > limit_paise,
         })
 
     # Goals
@@ -308,18 +326,19 @@ def execute_get_budget_and_goals(db: Session, user_id: uuid.UUID, params: GetBud
     if params.include_goals:
         goals = db.query(SavingsGoal).filter(
             SavingsGoal.user_id == user_id,
-            SavingsGoal.is_active == True,
+            SavingsGoal.status != "PAUSED",
         ).all()
         for g in goals:
             target_inr = round(g.target_amount_paise / 100.0, 2)
-            current_inr = round(g.current_saved_paise / 100.0, 2)
-            progress_pct = round((g.current_saved_paise / g.target_amount_paise) * 100.0, 1) if g.target_amount_paise > 0 else 0.0
+            current_inr = round(g.current_amount_paise / 100.0, 2)
+            progress_pct = round((g.current_amount_paise / g.target_amount_paise) * 100.0, 1) if g.target_amount_paise > 0 else 0.0
             goal_items.append({
                 "goal_name": g.name,
                 "target_amount_inr": target_inr,
                 "current_saved_inr": current_inr,
                 "progress_pct": progress_pct,
                 "target_date": g.target_date.isoformat() if g.target_date else None,
+                "status": g.status,
             })
 
     return {
@@ -544,6 +563,51 @@ def execute_get_personalized_recommendations(db: Session, user_id: uuid.UUID, pa
     return {"recommendations": [r.model_dump() for r in recs]}
 
 # ============================================================================
+# Tool 9: Account Summary & Financial Snapshot
+# ============================================================================
+
+class GetAccountSummaryInput(BaseModel):
+    period: Optional[str] = Field("last_30_days", description="Summary period: 'current_month', 'last_30_days', 'last_90_days', or 'ytd'.")
+
+def execute_get_account_summary(db: Session, user_id: uuid.UUID, params: GetAccountSummaryInput) -> Dict[str, Any]:
+    period = params.period or "last_30_days"
+    summary = get_dashboard_summary(db, user_id, period=period)
+    categories = get_category_breakdown(db, user_id, period=period)
+    accounts = db.query(FinancialAccount).filter(
+        FinancialAccount.user_id == user_id,
+        FinancialAccount.is_active == True,
+    ).all()
+
+    return {
+        "period": period,
+        "total_liquid_balance_inr": summary.total_liquid_balance_inr,
+        "total_debt_balance_inr": summary.total_debt_balance_inr,
+        "total_income_inr": summary.total_income_inr,
+        "total_expenses_inr": summary.total_expenses_inr,
+        "net_savings_inr": summary.net_savings_inr,
+        "savings_rate": summary.savings_rate,
+        "health_score": summary.health_score,
+        "health_grade": summary.health_grade,
+        "accounts": [
+            {
+                "name": a.name,
+                "account_type": a.account_type,
+                "institution": a.institution,
+                "balance_inr": round(a.balance_paise / 100.0, 2),
+            }
+            for a in accounts
+        ],
+        "top_categories": [
+            {
+                "category_name": c.category_name,
+                "spent_inr": c.spent_inr,
+                "percentage_share": round(c.percentage, 1),
+            }
+            for c in categories[:5]
+        ],
+    }
+
+# ============================================================================
 # Tool Registry Specifications for Function Calling
 # ============================================================================
 
@@ -661,6 +725,19 @@ AVAILABLE_TOOLS_SPEC = [
                 "type": "object",
                 "properties": {
                     "status": {"type": "string", "enum": ["new", "accepted", "dismissed", "completed", "all"], "default": "all"}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_account_summary",
+            "description": "Retrieve all connected bank/card/investment account balances, total liquid cash, debt, income, expenses, savings rate, and top spending categories.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "period": {"type": "string", "enum": ["current_month", "last_30_days", "last_90_days", "ytd"], "default": "last_30_days"}
                 },
             },
         },
