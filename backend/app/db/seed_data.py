@@ -11,6 +11,7 @@ from app.models.budget import Budget
 from app.models.goal import SavingsGoal
 from app.models.recurring_transaction import RecurringTransaction
 from app.models.financial_insight import FinancialInsight
+from app.models.chat import ChatConversation, ChatMessage
 from app.core.security import hash_password
 from app.core.config import settings
 from app.services.transaction_service import compute_fingerprint
@@ -593,6 +594,39 @@ def seed_demo_data(db: Session) -> User:
                 is_read=False,
                 is_resolved=False,
             ))
+
+    # 9. Seed default Copilot Conversation so Copilot works immediately across serverless instances
+    default_conv_id = uuid.uuid5(uuid.NAMESPACE_DNS, "finpilot.chat.default")
+    existing_conv = db.query(ChatConversation).filter(
+        ChatConversation.user_id == demo_user.id,
+    ).first()
+    if not existing_conv:
+        conv = ChatConversation(
+            id=default_conv_id,
+            user_id=demo_user.id,
+            title="Financial Copilot Discussion",
+        )
+        db.add(conv)
+        db.flush()
+        db.add(ChatMessage(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, "finpilot.chat.default.welcome"),
+            conversation_id=conv.id,
+            user_id=demo_user.id,
+            role="ASSISTANT",
+            content=(
+                f"Hello {demo_user.full_name}! I am your FinPilot Financial Copilot. I am connected directly to your "
+                f"financial accounts, budget pacing, recurring mandates, and cash-flow forecast models.\n\n"
+                f"You can ask me questions like:\n"
+                f"- *How much did I spend on food this month?*\n"
+                f"- *Which categories increased the most compared with last month?*\n"
+                f"- *Can I afford a ₹15,000 purchase without dropping below my emergency reserve?*\n"
+                f"- *Why does the system predict a low balance near month-end?*\n"
+                f"- *Where could I reduce spending by ₹2,000 next month?*\n"
+                f"- *What recurring payments are due soon?*\n"
+                f"- *How much could I save in six months under different spending assumptions?*"
+            ),
+            provider_used="finpilot-welcome",
+        ))
 
     db.commit()
     return demo_user

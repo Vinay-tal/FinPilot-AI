@@ -60,6 +60,8 @@ export const CopilotPage: React.FC = () => {
   const [editingConvId, setEditingConvId] = useState<string | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
   const [activeFollowups, setActiveFollowups] = useState<string[]>([])
+  const [localConvs, setLocalConvs] = useState<ConversationItem[]>([])
+  const [localTurnsByConv, setLocalTurnsByConv] = useState<Record<string, ChatMessage[]>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 1. Fetch user's conversation sessions
@@ -68,12 +70,19 @@ export const CopilotPage: React.FC = () => {
     queryFn: listConversationsApi,
   })
 
+  // Merge server conversations with any newly created in-session conversations (serverless container resilience)
+  const displayConversations = React.useMemo(() => {
+    const serverIds = new Set(conversations.map((c) => c.id))
+    const extra = localConvs.filter((c) => !serverIds.has(c.id))
+    return [...extra, ...conversations]
+  }, [conversations, localConvs])
+
   // Set initial active conversation
   useEffect(() => {
-    if (conversations.length > 0 && !activeConvId) {
-      setActiveConvId(conversations[0].id)
+    if (displayConversations.length > 0 && !activeConvId) {
+      setActiveConvId(displayConversations[0].id)
     }
-  }, [conversations, activeConvId])
+  }, [displayConversations, activeConvId])
 
   // 2. Fetch messages for active conversation
   const { data: messages = [], isLoading: isMessagesLoading } = useQuery({
@@ -82,17 +91,27 @@ export const CopilotPage: React.FC = () => {
     enabled: Boolean(activeConvId),
   })
 
+  const displayMessages = React.useMemo(() => {
+    if (!activeConvId) return messages
+    const extraTurns = localTurnsByConv[activeConvId] || []
+    if (extraTurns.length === 0) return messages
+    const existingIds = new Set(messages.map((m) => m.id))
+    const missing = extraTurns.filter((m) => !existingIds.has(m.id))
+    return [...messages, ...missing]
+  }, [messages, localTurnsByConv, activeConvId])
+
   // Auto-scroll to bottom of conversation
   useEffect(() => {
     if (typeof messagesEndRef.current?.scrollIntoView === 'function') {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages])
+  }, [displayMessages])
 
   // 3. Create conversation mutation
   const createConvMutation = useMutation({
     mutationFn: (title?: string) => createConversationApi(title),
     onSuccess: (newConv) => {
+      setLocalConvs((prev) => [newConv, ...prev.filter((c) => c.id !== newConv.id)])
       queryClient.invalidateQueries({ queryKey: ['copilot-conversations'] })
       setActiveConvId(newConv.id)
       toastSuccess('Started new financial discussion')
@@ -105,7 +124,8 @@ export const CopilotPage: React.FC = () => {
   // 4. Rename conversation mutation
   const renameConvMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) => renameConversationApi(id, title),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      setLocalConvs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       queryClient.invalidateQueries({ queryKey: ['copilot-conversations'] })
       setEditingConvId(null)
       toastSuccess('Conversation renamed')
@@ -119,9 +139,10 @@ export const CopilotPage: React.FC = () => {
   const deleteConvMutation = useMutation({
     mutationFn: (id: string) => deleteConversationApi(id),
     onSuccess: (_, deletedId) => {
+      setLocalConvs((prev) => prev.filter((c) => c.id !== deletedId))
       queryClient.invalidateQueries({ queryKey: ['copilot-conversations'] })
       if (activeConvId === deletedId) {
-        const remaining = conversations.filter((c) => c.id !== deletedId)
+        const remaining = displayConversations.filter((c) => c.id !== deletedId)
         setActiveConvId(remaining.length > 0 ? remaining[0].id : null)
       }
       toastSuccess('Conversation deleted')
@@ -135,9 +156,32 @@ export const CopilotPage: React.FC = () => {
   const sendMessageMutation = useMutation({
     mutationFn: ({ convId, query }: { convId: string; query: string }) =>
       sendConversationMessageApi(convId, query),
-    onSuccess: (res: CopilotTurnResponse) => {
+    onSuccess: (res: CopilotTurnResponse, variables) => {
+      const targetConvId = res.conversation_id || variables.convId
+      const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      const userTurn: ChatMessage = {
+        id: `user-${res.message_id}`,
+        role: 'USER',
+        content: variables.query,
+        provider_used: 'user',
+        created_at: nowLabel,
+      }
+      const assistantTurn: ChatMessage = {
+        id: res.message_id,
+        role: 'ASSISTANT',
+        content: res.answer,
+        provider_used: res.provider_used,
+        citations: res.citations,
+        facts_vs_estimates: res.facts_vs_estimates,
+        scenario_card: res.scenario_card,
+        created_at: nowLabel,
+      }
+      setLocalTurnsByConv((prev) => ({
+        ...prev,
+        [targetConvId]: [...(prev[targetConvId] || []), userTurn, assistantTurn],
+      }))
       setActiveFollowups(res.suggested_followups || [])
-      queryClient.invalidateQueries({ queryKey: ['copilot-messages', activeConvId] })
+      queryClient.invalidateQueries({ queryKey: ['copilot-messages', targetConvId] })
       queryClient.invalidateQueries({ queryKey: ['copilot-conversations'] })
     },
     onError: (err: any) => {
@@ -162,7 +206,7 @@ export const CopilotPage: React.FC = () => {
     setQueryInput('')
   }
 
-  const activeConversation = conversations.find((c) => c.id === activeConvId)
+  const activeConversation = displayConversations.find((c) => c.id === activeConvId)
 
   // Render scenario result card
   const renderScenarioCard = (card?: ScenarioCard | null) => {
@@ -311,10 +355,10 @@ export const CopilotPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {isConvLoading ? (
             <div className="p-4 text-center text-xs text-slate-400">Loading discussions...</div>
-          ) : conversations.length === 0 ? (
+          ) : displayConversations.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-400">No active discussions. Start one above!</div>
           ) : (
-            conversations.map((conv) => {
+            displayConversations.map((conv) => {
               const isActive = conv.id === activeConvId
               const isEditing = editingConvId === conv.id
 
@@ -453,7 +497,7 @@ export const CopilotPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            messages.map((m) => {
+            displayMessages.map((m) => {
               const isUser = m.role === 'USER'
 
               return (

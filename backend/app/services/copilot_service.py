@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import uuid
 from typing import List, Dict, Any, Optional, Iterator
 import sqlalchemy as sa
@@ -129,12 +130,51 @@ def create_conversation(db: Session, user_id: uuid.UUID, title: Optional[str] = 
     db.flush()
     return conv
 
+def _resolve_user_conversation(
+    db: Session,
+    user_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    create_if_serverless_missing: bool = False,
+) -> Optional[ChatConversation]:
+    """
+    Fetch conversation owned by user_id.
+    Enforces strict tenant isolation if the conversation belongs to another user.
+    In ephemeral Vercel serverless environments (/tmp SQLite), auto-materializes
+    conversations created in another Lambda container so multi-turn chat succeeds.
+    """
+    conv = db.query(ChatConversation).filter(ChatConversation.id == conversation_id).first()
+    if conv:
+        if conv.user_id != user_id:
+            raise ValueError("Conversation not found or unauthorized.")
+        return conv
+
+    if create_if_serverless_missing and os.environ.get("VERCEL"):
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            conv = ChatConversation(
+                id=conversation_id,
+                user_id=user_id,
+                title="Financial Copilot Discussion",
+            )
+            db.add(conv)
+            db.flush()
+            user_name = user.full_name if user else "there"
+            welcome_msg = ChatMessage(
+                conversation_id=conv.id,
+                user_id=user_id,
+                role="ASSISTANT",
+                content=f"Hello {user_name}! What financial question can I help you investigate today?",
+                provider_used="finpilot-welcome",
+            )
+            db.add(welcome_msg)
+            db.flush()
+            return conv
+
+    return None
+
 def rename_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID, new_title: str) -> ChatConversation:
     """Rename conversation title with tenant authorization."""
-    conv = db.query(ChatConversation).filter(
-        ChatConversation.id == conversation_id,
-        ChatConversation.user_id == user_id,
-    ).first()
+    conv = _resolve_user_conversation(db, user_id, conversation_id, create_if_serverless_missing=True)
     if not conv:
         raise ValueError("Conversation not found or unauthorized.")
     conv.title = new_title.strip()[:200]
@@ -143,22 +183,18 @@ def rename_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.U
 
 def delete_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> bool:
     """Delete a conversation with tenant authorization."""
-    conv = db.query(ChatConversation).filter(
-        ChatConversation.id == conversation_id,
-        ChatConversation.user_id == user_id,
-    ).first()
-    if not conv:
-        return False
-    db.delete(conv)
-    db.flush()
-    return True
+    conv = db.query(ChatConversation).filter(ChatConversation.id == conversation_id).first()
+    if conv:
+        if conv.user_id != user_id:
+            return False
+        db.delete(conv)
+        db.flush()
+        return True
+    return bool(os.environ.get("VERCEL"))
 
 def get_conversation_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> List[ChatMessage]:
     """Retrieve message history for a conversation."""
-    conv = db.query(ChatConversation).filter(
-        ChatConversation.id == conversation_id,
-        ChatConversation.user_id == user_id,
-    ).first()
+    conv = _resolve_user_conversation(db, user_id, conversation_id, create_if_serverless_missing=True)
     if not conv:
         raise ValueError("Conversation not found or unauthorized.")
 
@@ -414,10 +450,7 @@ def process_copilot_turn(
 
     # 2. Resolve conversation
     if conversation_id:
-        conv = db.query(ChatConversation).filter(
-            ChatConversation.id == conversation_id,
-            ChatConversation.user_id == user_id,
-        ).first()
+        conv = _resolve_user_conversation(db, user_id, conversation_id, create_if_serverless_missing=True)
         if not conv:
             raise ValueError("Conversation not found or unauthorized.")
     else:
